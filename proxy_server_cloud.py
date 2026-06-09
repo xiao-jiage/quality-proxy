@@ -6,7 +6,7 @@
 版本: v3.0 (MCP HTTP JSON-RPC 版)
 """
 
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, make_response
 from functools import wraps
 import os
 import json
@@ -15,6 +15,29 @@ import time
 from datetime import datetime
 
 app = Flask(__name__)
+
+# ============================================================
+# CORS 跨域支持 + 预检请求处理
+# ============================================================
+@app.after_request
+def after_request(response):
+    """为所有响应添加 CORS 头，允许前端跨域访问"""
+    response.headers.add('Access-Control-Allow-Origin', '*')
+    response.headers.add('Access-Control-Allow-Headers', 'Content-Type, Authorization')
+    response.headers.add('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+    response.headers.add('Access-Control-Expose-Headers', 'Content-Type, Authorization')
+    return response
+
+
+@app.route('/', defaults={'path': ''}, methods=['OPTIONS'])
+@app.route('/<path:path>', methods=['OPTIONS'])
+def handle_options(path):
+    """处理 CORS 预检请求"""
+    response = make_response()
+    response.headers.add('Access-Control-Allow-Origin', '*')
+    response.headers.add('Access-Control-Allow-Headers', 'Content-Type, Authorization')
+    response.headers.add('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+    return response
 
 # ============================================================
 # 配置（从环境变量读取）
@@ -143,7 +166,9 @@ def auth_required(f):
             return f(*args, **kwargs)
         auth = request.authorization
         if not auth or not check_auth(auth.username, auth.password):
-            return jsonify({"error": "认证失败，请检查账号密码"}), 401
+            resp = make_response(jsonify({"error": "认证失败，请检查账号密码"}), 401)
+            resp.headers['WWW-Authenticate'] = 'Basic realm="Quality Analysis Proxy"'
+            return resp
         return f(*args, **kwargs)
     return decorated
 
