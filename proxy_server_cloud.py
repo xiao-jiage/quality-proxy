@@ -230,12 +230,12 @@ def fetch_all_data():
         if data:
             sheets_data[sid] = {
                 "name": sname,
-                "data": data
+                "rows": data
             }
         else:
             sheets_data[sid] = {
                 "name": sname,
-                "data": [],
+                "rows": [],
                 "error": "读取失败"
             }
 
@@ -327,7 +327,7 @@ def api_data():
 
     return jsonify({
         "success": True,
-        "data": DATA_CACHE,
+        "rows": data_CACHE,
         "cache_age_seconds": int(time.time() - CACHE_TIMESTAMP) if CACHE_TIMESTAMP else None
     })
 
@@ -366,3 +366,4 @@ if __name__ == "__main__":
     print(f"认证: {'已启用' if PROXY_AUTH_USER else '未启用'}")
     print(f"=" * 60)
     app.run(host="0.0.0.0", port=port)
+修复字段名：data → rows
