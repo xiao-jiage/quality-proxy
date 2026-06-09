@@ -3,7 +3,7 @@
 云端代理服务 — 通过腾讯文档 MCP HTTP API 实时拉取数据
 适配 Railway / Render 等云平台部署
 
-版本: v3.2 (MCP HTTP JSON-RPC 版)
+版本: v3.3 (MCP HTTP JSON-RPC 版)
 更新日期: 2026-06-09
 关键修复:
   - CORS 跨域支持简化，避免启动崩溃
@@ -11,6 +11,7 @@
   - 硬编码子表列表，绕过 list_sheets 工具不稳定问题
   - 401 响应添加 WWW-Authenticate 头，支持浏览器弹窗认证
   - /api/data 返回格式扁平化，顶层直接包含 sheets，兼容前端解析
+  - OPTIONS 预检请求跳过认证，彻底解决 CORS 跨域问题
 """
 
 from flask import Flask, jsonify, request
@@ -156,6 +157,9 @@ def check_auth(username, password):
 def auth_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
+        # 浏览器 CORS 预检请求不携带认证头，直接放行
+        if request.method == 'OPTIONS':
+            return f(*args, **kwargs)
         if not PROXY_AUTH_USER or not PROXY_AUTH_PASS:
             return f(*args, **kwargs)
         auth = request.authorization
@@ -368,7 +372,7 @@ def api_refresh():
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     print(f"=" * 60)
-    print(f"质量数据分析云端代理 v3.2")
+    print(f"质量数据分析云端代理 v3.3")
     print(f"MCP HTTP 模式")
     print(f"=" * 60)
     print(f"端口: {port}")
