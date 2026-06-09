@@ -3,7 +3,13 @@
 云端代理服务 — 通过腾讯文档 MCP HTTP API 实时拉取数据
 适配 Railway / Render 等云平台部署
 
-版本: v3.0 (MCP HTTP JSON-RPC 版)
+版本: v3.1-final (MCP HTTP JSON-RPC 版)
+更新日期: 2026-06-09
+关键修复:
+  - CORS 跨域支持简化，避免启动崩溃
+  - 字段名统一为 rows，兼容前端 HTML
+  - 硬编码子表列表，绕过 list_sheets 工具不稳定问题
+  - 401 响应添加 WWW-Authenticate 头，支持浏览器弹窗认证
 """
 
 from flask import Flask, jsonify, request
@@ -360,7 +366,7 @@ def api_refresh():
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     print(f"=" * 60)
-    print(f"质量数据分析云端代理 v3.0")
+    print(f"质量数据分析云端代理 v3.1-final")
     print(f"MCP HTTP 模式")
     print(f"=" * 60)
     print(f"端口: {port}")
