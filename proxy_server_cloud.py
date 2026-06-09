@@ -178,20 +178,15 @@ def auth_required(f):
 # ============================================================
 
 def get_sheet_list():
-    """获取子表列表"""
-    result = mcp_call_tool("sheet.list_sheets", {"file_id": FILE_ID}, req_id=10)
-    if "_error" in result:
-        return []
-
-    content = result.get("content", [])
-    for item in content:
-        if item.get("type") == "text":
-            try:
-                data = json.loads(item.get("text", "{}"))
-                return data.get("sheets", [])
-            except:
-                return []
-    return []
+    """获取子表列表 — 使用已知子表 ID（list_sheets 工具可能不稳定）"""
+    return [
+        {"id": "000001", "name": "产量汇总"},
+        {"id": "000002", "name": "电气不良"},
+        {"id": "000003", "name": "PCB不良"},
+        {"id": "000005", "name": "机装组"},
+        {"id": "000006", "name": "PCB组"},
+        {"id": "000007", "name": "参照表"},
+    ]
 
 
 def get_sheet_data(sheet_id, start_row=1, end_row=100, start_col=1, end_col=20):
