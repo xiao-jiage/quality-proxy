@@ -6,7 +6,7 @@
 版本: v3.0 (MCP HTTP JSON-RPC 版)
 """
 
-from flask import Flask, jsonify, request, make_response
+from flask import Flask, jsonify, request
 from functools import wraps
 import os
 import json
@@ -17,26 +17,13 @@ from datetime import datetime
 app = Flask(__name__)
 
 # ============================================================
-# CORS 跨域支持 + 预检请求处理
+# CORS 跨域支持
 # ============================================================
-@app.after_request
-def after_request(response):
-    """为所有响应添加 CORS 头，允许前端跨域访问"""
-    response.headers.add('Access-Control-Allow-Origin', '*')
-    response.headers.add('Access-Control-Allow-Headers', 'Content-Type, Authorization')
-    response.headers.add('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
-    response.headers.add('Access-Control-Expose-Headers', 'Content-Type, Authorization')
-    return response
-
-
-@app.route('/', defaults={'path': ''}, methods=['OPTIONS'])
-@app.route('/<path:path>', methods=['OPTIONS'])
-def handle_options(path):
-    """处理 CORS 预检请求"""
-    response = make_response()
-    response.headers.add('Access-Control-Allow-Origin', '*')
-    response.headers.add('Access-Control-Allow-Headers', 'Content-Type, Authorization')
-    response.headers.add('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+def add_cors_headers(response):
+    """为响应添加 CORS 头"""
+    response.headers['Access-Control-Allow-Origin'] = '*'
+    response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
+    response.headers['Access-Control-Allow-Methods'] = 'GET, POST, OPTIONS'
     return response
 
 # ============================================================
@@ -166,9 +153,10 @@ def auth_required(f):
             return f(*args, **kwargs)
         auth = request.authorization
         if not auth or not check_auth(auth.username, auth.password):
-            resp = make_response(jsonify({"error": "认证失败，请检查账号密码"}), 401)
+            resp = jsonify({"error": "认证失败，请检查账号密码"})
+            resp.status_code = 401
             resp.headers['WWW-Authenticate'] = 'Basic realm="Quality Analysis Proxy"'
-            return resp
+            return add_cors_headers(resp)
         return f(*args, **kwargs)
     return decorated
 
@@ -259,26 +247,31 @@ def fetch_all_data():
 # Flask 路由
 # ============================================================
 
-@app.route("/", methods=["GET"])
+@app.route("/", methods=["GET", "OPTIONS"])
 def index():
-    return jsonify({
+    if request.method == 'OPTIONS':
+        return add_cors_headers(jsonify({}))
+    return add_cors_headers(jsonify({
         "service": "质量数据分析云端代理",
         "version": "3.0-mcp-http",
         "status": "running",
         "endpoints": ["/api/status", "/api/data", "/api/refresh"]
-    })
+    }))
 
 
-@app.route("/api/status", methods=["GET"])
+@app.route("/api/status", methods=["GET", "OPTIONS"])
 @auth_required
 def api_status():
     """查询代理和缓存状态"""
+    if request.method == 'OPTIONS':
+        return add_cors_headers(jsonify({}))
+
     if not MCP_TOKEN:
-        return jsonify({
+        return add_cors_headers(jsonify({
             "configured": False,
             "error": "MCP Token 未配置",
             "missing_credentials": ["MCP_TOKEN"]
-        }), 200
+        }))
 
     # 简单验证 token 有效性（调用 tools/list）
     token_valid = False
@@ -292,7 +285,7 @@ def api_status():
     if CACHE_TIMESTAMP:
         cache_age = int(time.time() - CACHE_TIMESTAMP)
 
-    return jsonify({
+    return add_cors_headers(jsonify({
         "configured": True,
         "token_valid": token_valid,
         "cache_available": DATA_CACHE is not None,
@@ -301,13 +294,16 @@ def api_status():
         "sheet_count": DATA_CACHE.get("sheet_count", 0) if DATA_CACHE else 0,
         "updated_at": DATA_CACHE.get("updated_at") if DATA_CACHE else None,
         "data_source": "tencent_docs_mcp"
-    })
+    }))
 
 
-@app.route("/api/data", methods=["GET"])
+@app.route("/api/data", methods=["GET", "OPTIONS"])
 @auth_required
 def api_data():
     """获取缓存数据（带缓存刷新逻辑）"""
+    if request.method == 'OPTIONS':
+        return add_cors_headers(jsonify({}))
+
     global DATA_CACHE, CACHE_TIMESTAMP
 
     # 检查缓存是否过期
@@ -319,35 +315,42 @@ def api_data():
     if cache_expired or not DATA_CACHE:
         result = fetch_all_data()
         if "error" in result:
-            return jsonify({
+            resp = jsonify({
                 "success": False,
                 "error": result["error"],
                 "configured": result.get("configured", False)
-            }), 500
+            })
+            resp.status_code = 500
+            return add_cors_headers(resp)
 
-    return jsonify({
+    return add_cors_headers(jsonify({
         "success": True,
-        "rows": data_CACHE,
+        "data": DATA_CACHE,
         "cache_age_seconds": int(time.time() - CACHE_TIMESTAMP) if CACHE_TIMESTAMP else None
-    })
+    }))
 
 
-@app.route("/api/refresh", methods=["POST"])
+@app.route("/api/refresh", methods=["POST", "OPTIONS"])
 @auth_required
 def api_refresh():
     """强制刷新数据"""
+    if request.method == 'OPTIONS':
+        return add_cors_headers(jsonify({}))
+
     result = fetch_all_data()
     if "error" in result:
-        return jsonify({
+        resp = jsonify({
             "success": False,
             "error": result["error"]
-        }), 500
+        })
+        resp.status_code = 500
+        return add_cors_headers(resp)
 
-    return jsonify({
+    return add_cors_headers(jsonify({
         "success": True,
         "message": f"数据已刷新，共 {result.get('sheet_count', 0)} 个子表",
         "updated_at": result.get("updated_at")
-    })
+    }))
 
 
 # ============================================================
@@ -366,4 +369,3 @@ if __name__ == "__main__":
     print(f"认证: {'已启用' if PROXY_AUTH_USER else '未启用'}")
     print(f"=" * 60)
     app.run(host="0.0.0.0", port=port)
-修复字段名：data → rows
